@@ -1,1 +1,4 @@
+model_params/
 *.csv
+*.swp
+__pycache__/

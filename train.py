@@ -5,12 +5,7 @@ from torch.autograd import Variable
 
 # Constants
 TRAIN_RATIO = 0.9
-
-# Load data into a pandas dataframe
-digit_data = pandas.read_csv("train.csv")
-break_point = int(len(digit_data) * TRAIN_RATIO)
-train_data = digit_data[:break_point]
-validation_data = digit_data[break_point:]
+BATCH_SIZE = 8
 
 
 # Define models
@@ -20,12 +15,12 @@ class CNN_Model(torch.nn.Module):
 
         # Define conv layers
         # self.conv_layers = []
-        self.conv1 = torch.nn.Conv2d(1, 4, 3) # img: 26*26
-        self.conv2 = torch.nn.Conv2d(4, 4, 2, stride=2) # img: 13*13
-        self.conv3 = torch.nn.Conv2d(4, 8, 3) # img: 11*11
-        self.conv4 = torch.nn.Conv2d(8, 8, 3, stride=2) # img: 5*5
+        self.conv1 = torch.nn.Conv2d(1, 8, 3) # img: 26*26
+        self.conv2 = torch.nn.Conv2d(8, 16, 2, stride=2) # img: 13*13
+        self.conv3 = torch.nn.Conv2d(16, 32, 3) # img: 11*11
+        self.conv4 = torch.nn.Conv2d(32, 64, 3, stride=2) # img: 5*5
 
-        self.fully_conected = torch.nn.Linear(25 * 8, 10)
+        self.fully_conected = torch.nn.Linear(25 * 64, 10)
         self.logsoftmax = torch.nn.LogSoftmax()
         self.relu = torch.nn.ReLU()
 
@@ -49,7 +44,7 @@ class CNN_Model(torch.nn.Module):
         image = self.relu(image)
         image = dropout(image)
 
-        logits = self.fully_conected(image.view(-1, 25 * 8))
+        logits = self.fully_conected(image.view(-1, 25 * 64))
         return self.logsoftmax(logits)
 
 def prepare_examples(batch, labled=True):
@@ -98,29 +93,35 @@ def predict(batch, model):
     max_indicies = log_probs.max(1)[1]
     return max_indicies.data.numpy()
 
-# Start Training
-BATCH_SIZE = 8
-model = CNN_Model()
-learing_rate = 0.01
-criterion = torch.nn.NLLLoss()
-losses = []
+if __name__ == "__main__":
+    # Load data into a pandas dataframe
+    digit_data = pandas.read_csv("train.csv")
+    break_point = int(len(digit_data) * TRAIN_RATIO)
+    train_data = digit_data[:break_point]
+    validation_data = digit_data[break_point:]
 
-for epoch in range(5):
-    optimizer = torch.optim.SGD(model.parameters(), lr=learing_rate)
-    for i in range(0, len(train_data), BATCH_SIZE):
-        batch = train_data[i:i+BATCH_SIZE].values
-        losses.append(train_batch(batch, model, criterion, optimizer))
+    # Start Training
+    model = CNN_Model()
+    learning_rate = 0.01
+    criterion = torch.nn.NLLLoss()
+    losses = []
 
-        if (i / BATCH_SIZE + 1) % 1000 == 0:
-            print("Average Trainging Loss is {}".format(sum(losses) / len(losses)))
-            losses = []
-    learing_rate *= 0.7
+    for epoch in range(5):
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+        for i in range(0, len(train_data), BATCH_SIZE):
+            batch = train_data[i:i+BATCH_SIZE].values
+            losses.append(train_batch(batch, model, criterion, optimizer))
 
-# Evaluated
-losses = []
-for i in range(0, len(validation_data), BATCH_SIZE):
-    img = validation_data[i:i+BATCH_SIZE]
-    losses.append(evaluate(img, model))
-print("Validation Loss is {:.2%}".format(sum(losses) / len(validation_data)))
+            if (i / BATCH_SIZE + 1) % 1000 == 0:
+                print("Average Trainging Loss is {}".format(sum(losses) / len(losses)))
+                losses = []
+        learning_rate *= 0.7
 
-torch.save(model.state_dict(), "model_params/model")
+    # Evaluated
+    losses = []
+    for i in range(0, len(validation_data), BATCH_SIZE):
+        img = validation_data[i:i+BATCH_SIZE]
+        losses.append(evaluate(img, model))
+    print("Validation Loss is {:.2%}".format(sum(losses) / len(validation_data)))
+
+    torch.save(model.state_dict(), "model_params/model")
